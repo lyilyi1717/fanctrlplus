@@ -73,6 +73,7 @@ resolve_cpu_sensors() {
 }
 
 prev_pwm=-1
+failsafe_active=0
 
 while true; do
   # === CPU 温度（多传感器取最大值） ===
@@ -174,9 +175,21 @@ while true; do
   fi
 
   # 若无任何有效温度源 → 覆盖为 idle，并标注来源
+  # （CPU 监控开启但读不到任何温度时，改为满速 failsafe，避免过热）
   if [[ "$max_temp" == "*" ]]; then
-    pwm_val="$idle_pwm_abs"
-    temp_origin="(Idle)"
+    if [[ "${cpu_enable:-0}" == "1" && ! "$cpu_temp" =~ ^[0-9]+$ ]]; then
+      pwm_val="$max"
+      temp_origin="(Failsafe)"
+      if [[ "$failsafe_active" != "1" ]]; then
+        logger -t fanctrlplus "[${custom}] No readable temperature source; failing safe to FULL speed (PWM=$max)"
+        failsafe_active=1
+      fi
+    else
+      pwm_val="$idle_pwm_abs"
+      temp_origin="(Idle)"
+    fi
+  else
+    failsafe_active=0
   fi
 
   # 每轮都写入 Dashboard 缓存

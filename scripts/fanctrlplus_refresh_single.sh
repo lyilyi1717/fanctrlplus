@@ -141,6 +141,13 @@ if [[ ! "$max_temp" =~ ^[0-9]+$ ]]; then
   temp_origin=""
 fi
 
+# CPU 监控开启但读不到任何温度 → 满速 failsafe，避免过热
+if [[ "$max_temp" == "*" && "${cpu_enable:-0}" == "1" && ! "$cpu_temp" =~ ^[0-9]+$ ]]; then
+  pwm_val="$max"
+  temp_origin="(Failsafe)"
+  logger -t fanctrlplus "Manual Run [${custom}] No readable temperature source; failing safe to FULL speed (PWM=$max)"
+fi
+
 # 强制写 PWM
 [[ -f "$controller_enable" ]] && echo 1 > "$controller_enable"
 echo "$pwm_val" > "$controller"
