@@ -264,5 +264,10 @@ while true; do
     fi
   fi
 
-  sleep $((interval * 60))
+  # interval 支持秒后缀（如 10s）；纯数字仍按分钟
+  if [[ "$interval" =~ ^([0-9]+)[sS]$ ]]; then
+    sleep "${BASH_REMATCH[1]}"
+  else
+    sleep $((interval * 60))
+  fi
 done

@@ -175,14 +175,14 @@ function render_fan_block($cfg, $i, $pwms, $disks, $pwm_labels, $cpu_sensors) {
 
         <!-- Interval -->
         <tr>
-          <td class="fcp-help-cursor" title="Check temperature and adjust fan speed every X minutes.">Interval:</td>
+          <td class="fcp-help-cursor" title="Check temperature and adjust fan speed every X minutes. Append 's' for seconds (e.g. 10s).">Interval:</td>
           <td>
             <input type="text"
                   id="interval_input_<?=$i?>"
                   name="interval[<?=$i?>]"
-                  class="interval-input fcp-interval-input" 
+                  class="interval-input fcp-interval-input"
                   inputmode="numeric"
-                  value="<?=htmlspecialchars(($cfg['interval'] ?? '') . ' min')?>"
+                  value="<?=htmlspecialchars(preg_match('/\ds$/i', (string)($cfg['interval'] ?? '')) ? $cfg['interval'] : (($cfg['interval'] ?? '') . ' min'))?>"
                   placeholder="Recommended: 1–5 min">
 
             <span class="fanctrlplus-interval-refresh fcp-runnow"

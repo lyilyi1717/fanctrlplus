@@ -570,7 +570,12 @@ $(function() {
     unitConfigs.forEach(({ selector, unit, min = 0, max = 100 }) => {
       document.querySelectorAll(selector).forEach(input => {
         const enforceUnit = () => {
-          let val = (input.value ?? '').toString().replace(/\D/g, '');
+          const raw = (input.value ?? '').toString();
+
+          // Interval 支持秒后缀（如 10s）；纯数字仍按分钟
+          const useSeconds = unit === ' min' && /^\s*\d+\s*s/i.test(raw);
+
+          let val = raw.replace(/\D/g, '');
 
           // 如果转换后是空字符串，就不设置单位
           if (!val) {
@@ -579,10 +584,11 @@ $(function() {
           }
 
           val = Math.min(Math.max(parseInt(val), min), max);
-          input.value = val + unit;
+          const suffix = useSeconds ? 's' : unit;
+          input.value = val + suffix;
 
           // 光标移到单位前
-          const pos = input.value.indexOf(unit);
+          const pos = input.value.indexOf(suffix);
           input.setSelectionRange(pos, pos);
         };
 
@@ -590,7 +596,8 @@ $(function() {
 
         input.addEventListener('click', () => {
           setTimeout(() => {
-            const pos = input.value.indexOf(unit);
+            const suffix = /^\d+s$/i.test(input.value) ? 's' : unit;
+            const pos = input.value.indexOf(suffix);
             input.setSelectionRange(pos, pos);
           }, 0);
         });
@@ -1042,11 +1049,11 @@ $(function() {
 
       namesSeen.add(name);
 
-      if (!/^\d+$/.test(interval) || parseInt(interval) <= 0) {
+      if (!/^\d+s?$/i.test(interval) || parseInt(interval) <= 0) {
         valid = false;
-        errorMsg = 'Interval cannot be empty or 0 (recommended: 1–5 min).';
+        errorMsg = 'Interval must be a positive number of minutes, or seconds with an "s" suffix (e.g. 10s).';
         return false;
-      } 
+      }
     });
 
     let rangeValid = true;
@@ -1542,7 +1549,7 @@ $(function() {
 
     <p><strong>Fan Speed Range:</strong> This sets the minimum and maximum PWM duty cycle values. For example, setting the range to 40–80% means the fan will always run at least 40% speed when cool, and will not exceed 80% speed even at high temperatures.</p>
 
-    <p><strong>Interval:</strong> How often the plugin checks disk (and, if enabled, CPU) temperatures and adjusts fan speed accordingly. Shorter intervals provide more responsive cooling but may result in more frequent fan changes.</p>  
+    <p><strong>Interval:</strong> How often the plugin checks disk (and, if enabled, CPU) temperatures and adjusts fan speed accordingly. Plain numbers are minutes; append <strong>s</strong> for seconds (e.g. <strong>10s</strong>). Shorter intervals provide more responsive cooling but may result in more frequent fan changes.</p>
 
     <p><strong>Run Now:</strong> Immediately applies the current fan setting based on the latest temperature. Useful for testing or verifying PWM control and fan response without waiting for the next scheduled check.</p>
 
@@ -1603,7 +1610,7 @@ $(function() {
         <li>Disk 48°C → 94%, CPU 70°C → 70% → Result = <strong>94%</strong> (Disk)</li>
       </ul>
 
-      <p style="margin-top: 8px;"><em>Tip:</em> For CPU-based control, consider setting a <strong>shorter interval</strong> (e.g. 1&nbsp;minute) for better responsiveness.</p>
+      <p style="margin-top: 8px;"><em>Tip:</em> For CPU-based control, consider setting a <strong>shorter interval</strong> (e.g. <strong>10s</strong>) for better responsiveness.</p>
     </div>
 
     <p><strong>Disks:</strong> Only the selected disks will be monitored to control this fan. Multiple fans can monitor overlapping disks, and one disk can be assigned to multiple fans.</p>

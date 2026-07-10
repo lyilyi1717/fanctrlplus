@@ -151,12 +151,12 @@ foreach ($_POST['#file'] as $i => $file) {
 
   file_put_contents($old_path, "custom=\"$custom\"\n...");
 
-  // 校验 interval 合法性（必须为正整数）
-  if (!ctype_digit($interval) || intval($interval) <= 0) {
+  // 校验 interval 合法性（正整数分钟，或带 s 后缀的秒数，如 10s）
+  if (!preg_match('/^[1-9][0-9]*[sS]?$/', $interval)) {
     ob_clean();
-    echo json_encode(['status' => 'error', 'message' => "Interval cannot be empty or 0 (recommended: 1–5 min)."]);
+    echo json_encode(['status' => 'error', 'message' => "Interval must be a positive number of minutes, or seconds with an 's' suffix (e.g. 10s)."]);
     exit;
-  } 
+  }
 
   // === 临时文件：以 custom 命名为正式文件 ===
   if (strpos($old_file, 'temp_') !== false && !empty($controller)) {
