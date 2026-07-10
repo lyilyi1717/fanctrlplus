@@ -55,10 +55,11 @@ find_cpu_inputs_by_chip_label() {
 
 # 记录每个绝对路径传感器对应的 芯片名|label 快照，
 # hwmon 重新编号后可据此重新定位（参照 migrate_cfg_and_labels 对 controller 的做法）
+# $1 = 传感器串（cpu_sensor / aux_sensor）
 declare -A sensor_identity
 snapshot_sensor_identity() {
   local spec dir lf
-  for spec in ${cpu_sensor//,/ }; do
+  for spec in ${1//,/ }; do
     [[ "$spec" == auto:* ]] && continue
     [[ -r "$spec" ]] || continue
     dir="$(dirname "$spec")"
@@ -69,12 +70,12 @@ snapshot_sensor_identity() {
   done
 }
 
-# 将 cpu_sensor（支持逗号/空格分隔的多路径，以及 auto:CHIP:LABEL 形式）
+# 将传感器串 $1（支持逗号/空格分隔的多路径，以及 auto:CHIP:LABEL 形式）
 # 展开为当前可读的 temp*_input 路径；hwmon 重新编号后按快照重新解析，
 # 即使旧路径仍存在也先校验芯片/label 身份（旧编号可能已被其他芯片占用）
 resolve_cpu_sensors() {
   local spec rest chip label dir lf
-  for spec in ${cpu_sensor//,/ }; do
+  for spec in ${1//,/ }; do
     case "$spec" in
       auto:*:*)
         rest="${spec#auto:}"
@@ -103,7 +104,8 @@ resolve_cpu_sensors() {
 }
 
 # 启动时先建立传感器身份快照（芯片名 + label）
-snapshot_sensor_identity
+snapshot_sensor_identity "${cpu_sensor:-}"
+snapshot_sensor_identity "${aux_sensor:-}"
 
 prev_pwm=-1
 failsafe_active=0
@@ -113,7 +115,7 @@ while true; do
   cpu_pwm_val=0
   if [[ "${cpu_enable:-0}" == "1" && -n "$cpu_sensor" ]]; then
     cpu_temp=""
-    for sensor in $(resolve_cpu_sensors); do
+    for sensor in $(resolve_cpu_sensors "$cpu_sensor"); do
       raw=$(cat "$sensor" 2>/dev/null)
       [[ "$raw" =~ ^[0-9]+$ ]] || continue
       t=$((raw / 1000))
@@ -135,6 +137,36 @@ while true; do
     fi
   else
     cpu_temp="-"
+  fi
+
+  # === Aux/主板 温度（多传感器取最大值，语法同 cpu_sensor） ===
+  aux_pwm_val=0
+  if [[ "${aux_enable:-0}" == "1" && -n "${aux_sensor:-}" ]]; then
+    aux_lo="${aux_min_temp:-35}"
+    aux_hi="${aux_max_temp:-55}"
+    aux_temp=""
+    for sensor in $(resolve_cpu_sensors "$aux_sensor"); do
+      raw=$(cat "$sensor" 2>/dev/null)
+      [[ "$raw" =~ ^[0-9]+$ ]] || continue
+      t=$((raw / 1000))
+      if [[ -z "$aux_temp" ]] || (( t > aux_temp )); then
+        aux_temp=$t
+      fi
+    done
+
+    if [[ -z "$aux_temp" ]]; then
+      aux_temp="-"
+    elif (( aux_temp <= aux_lo )); then
+      aux_pwm_val=$pwm
+    elif (( aux_temp >= aux_hi )); then
+      aux_pwm_val=$max
+    else
+      delta=$((aux_temp - aux_lo))
+      range=$((aux_hi - aux_lo))
+      aux_pwm_val=$((pwm + delta * (max - pwm) / range))
+    fi
+  else
+    aux_temp="-"
   fi
 
   # === Disk 温控 PWM ===
@@ -201,6 +233,13 @@ while true; do
     temp_origin=$([ -n "$disks" ] && echo "(Disk)" || echo "(CPU)")
   fi
 
+  # Aux/主板 若更高则胜出
+  if (( aux_pwm_val > pwm_val )); then
+    pwm_val=$aux_pwm_val
+    max_temp=$aux_temp
+    temp_origin="(MB)"
+  fi
+
   # 避免空写入
   if [[ ! "$max_temp" =~ ^[0-9]+$ ]]; then
     max_temp="*"
@@ -208,9 +247,19 @@ while true; do
   fi
 
   # 若无任何有效温度源 → 覆盖为 idle，并标注来源
-  # （CPU 监控开启但读不到任何温度时，改为满速 failsafe，避免过热）
+  # （CPU/Aux 监控开启但全部读不到温度时，改为满速 failsafe，避免过热）
+  hw_enabled=0
+  hw_readable=0
+  if [[ "${cpu_enable:-0}" == "1" ]]; then
+    hw_enabled=1
+    [[ "$cpu_temp" =~ ^[0-9]+$ ]] && hw_readable=1
+  fi
+  if [[ "${aux_enable:-0}" == "1" ]]; then
+    hw_enabled=1
+    [[ "$aux_temp" =~ ^[0-9]+$ ]] && hw_readable=1
+  fi
   if [[ "$max_temp" == "*" ]]; then
-    if [[ "${cpu_enable:-0}" == "1" && ! "$cpu_temp" =~ ^[0-9]+$ ]]; then
+    if (( hw_enabled == 1 && hw_readable == 0 )); then
       pwm_val="$max"
       temp_origin="(Failsafe)"
       if [[ "$failsafe_active" != "1" ]]; then
