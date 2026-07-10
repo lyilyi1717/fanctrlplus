@@ -39,17 +39,58 @@ else
   fan_path=""
 fi
 
+# ===== CPU sensor helpers =====
+# 打印所有 name 为 $1 且 temp*_label 为 $2 的 hwmon temp*_input 路径
+find_cpu_inputs_by_chip_label() {
+  local chip="$1" want="$2" dir lf in
+  for dir in /sys/class/hwmon/hwmon*; do
+    [[ -r "$dir/name" && "$(cat "$dir/name" 2>/dev/null)" == "$chip" ]] || continue
+    for lf in "$dir"/temp*_label; do
+      [[ -r "$lf" && "$(cat "$lf" 2>/dev/null)" == "$want" ]] || continue
+      in="${lf%_label}_input"
+      [[ -r "$in" ]] && echo "$in"
+    done
+  done
+}
+
+# 将 cpu_sensor（支持逗号/空格分隔的多路径，以及 auto:CHIP:LABEL 形式）
+# 展开为当前可读的 temp*_input 路径
+resolve_cpu_sensors() {
+  local spec rest chip label
+  for spec in ${cpu_sensor//,/ }; do
+    case "$spec" in
+      auto:*:*)
+        rest="${spec#auto:}"
+        chip="${rest%%:*}"
+        label="${rest#*:}"
+        find_cpu_inputs_by_chip_label "$chip" "$label"
+        ;;
+      *)
+        [[ -r "$spec" ]] && echo "$spec"
+        ;;
+    esac
+  done
+}
+
 prev_pwm=-1
 
 while true; do
-  # === CPU 温度 ===
+  # === CPU 温度（多传感器取最大值） ===
   cpu_pwm_val=0
-  if [[ "${cpu_enable:-0}" == "1" && -n "$cpu_sensor" && -f "$cpu_sensor" ]]; then
-    raw=$(cat "$cpu_sensor")
-    [[ "$raw" =~ ^[0-9]+$ ]] && cpu_temp=$((raw / 1000))
-    cpu_temp=${cpu_temp:-0}
+  if [[ "${cpu_enable:-0}" == "1" && -n "$cpu_sensor" ]]; then
+    cpu_temp=""
+    for sensor in $(resolve_cpu_sensors); do
+      raw=$(cat "$sensor" 2>/dev/null)
+      [[ "$raw" =~ ^[0-9]+$ ]] || continue
+      t=$((raw / 1000))
+      if [[ -z "$cpu_temp" ]] || (( t > cpu_temp )); then
+        cpu_temp=$t
+      fi
+    done
 
-    if (( cpu_temp <= cpu_min_temp )); then
+    if [[ -z "$cpu_temp" ]]; then
+      cpu_temp="-"
+    elif (( cpu_temp <= cpu_min_temp )); then
       cpu_pwm_val=$pwm
     elif (( cpu_temp >= cpu_max_temp )); then
       cpu_pwm_val=$max

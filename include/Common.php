@@ -268,6 +268,7 @@ function detect_cpu_sensors(): array {
         'priority' => $hit ? $prio : 998,
         'chip'     => $chipName,
         'idx'      => $idxNum,
+        'rawlabel' => $label,
       ];
     }
 
@@ -286,7 +287,8 @@ function detect_cpu_sensors(): array {
                           ? array_search('Tctl', $priority_order, true)
                           : 0,
             'chip'     => $chipName,
-            'idx'      => 1
+            'idx'      => 1,
+            'rawlabel' => 'Tctl',
           ];
         }
       }
@@ -302,6 +304,22 @@ function detect_cpu_sensors(): array {
 
   // 输出 path => label（天然去重：同 path 只保留最后一个）
   $final = [];
+
+  // 聚合选项：同一 CPU 芯片存在多个同名 label（如双 die Threadripper 的
+  // k10temp Tdie）时，提供 auto:CHIP:LABEL 形式的 “取全部最大值” 选项
+  $agg = [];
+  foreach ($result as $e) {
+    if (empty($e['rawlabel'])) continue;
+    if (!in_array(strtolower($e['chip']), $cpu_chips_exact, true)) continue;
+    $agg[strtolower($e['chip']).':'.$e['rawlabel']][$e['path']] = $e;
+  }
+  foreach ($agg as $entries) {
+    if (count($entries) < 2) continue;
+    $e = reset($entries);
+    $final['auto:'.$e['chip'].':'.$e['rawlabel']] =
+      "All {$e['chip']} {$e['rawlabel']} (max of ".count($entries).")";
+  }
+
   foreach ($result as $e) {
     $final[$e['path']] = $e['label'];
   }
