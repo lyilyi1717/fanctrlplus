@@ -2,13 +2,13 @@
 
 > ### Threadripper fork (lyilyi1717/fanctrlplus, v1.3.3-tr2)
 >
-> This fork of [ck9393/fanctrlplus](https://github.com/ck9393/fanctrlplus) adds five fixes aimed at multi-die AMD CPUs (e.g. Threadripper 1950X, whose k10temp exposes two Tdie sensors and whose hwmon indexes reshuffle across driver reloads):
+> This fork of [ck9393/fanctrlplus](https://github.com/ck9393/fanctrlplus) adds five fixes aimed at multi-die AMD CPUs (e.g. first-generation Threadripper, where k10temp exposes one Tdie sensor per die and hwmon indexes can reshuffle across driver reloads):
 >
 > 1. **Multi-sensor CPU max** — `cpu_sensor` may hold several paths (space/comma separated) or `auto:CHIP:LABEL` (e.g. `auto:k10temp:Tdie`); the daemon reads all matches and uses the highest temperature. The settings page offers an "All k10temp Tdie (max of N)" option when a chip exposes the same label more than once.
 > 2. **Fail-to-full** — if CPU monitoring is enabled and no temperature (CPU or disk) can be read, the fan is driven at 100% instead of idle, and the event is logged to syslog.
 > 3. **Sensor path re-resolution** — stored sensor paths are verified by chip name + label each cycle and re-located when hwmon renumbering moves or replaces them (mirrors the existing controller-path migration).
 > 4. **Seconds-granularity interval** — interval accepts an `s` suffix (e.g. `10s` = 10 seconds); plain integers remain minutes. Recommended for CPU-based control: `10s`.
-> 5. **Aux/Motherboard sensor source (tr2)** — each fan can additionally track a SuperIO temperature (e.g. nct6779 `SYSTIN`) via new cfg keys `aux_enable`, `aux_sensor` (same syntax as `cpu_sensor`, incl. `auto:CHIP:LABEL`), `aux_min_temp`, `aux_max_temp` (defaults 35/55 °C). Final PWM = max(disk, CPU, aux); dashboard/syslog show `(MB)` when aux wins. Dead 0-reading channels (unwired `PCH_*`) are hidden from the dropdown. Suggested: SYSTIN 38 °C → min speed, 55 °C → 100 %.
+> 5. **Aux/Motherboard sensor source (tr2)** — each fan can additionally track a SuperIO temperature (e.g. nct6779 `SYSTIN`) via new cfg keys `aux_enable`, `aux_sensor` (same syntax as `cpu_sensor`, incl. `auto:CHIP:LABEL`), `aux_min_temp`, `aux_max_temp` (defaults 35/55 °C). Final PWM = max(disk, CPU, aux); dashboard/syslog show `(MB)` when aux wins. Dead 0-reading channels (e.g. unwired `PCH_*`) are hidden from the dropdown. Example curve for a typical SuperIO `SYSTIN` reading: 38 °C → min speed up to 55 °C → 100 % — tune the low end to a few degrees above your board's idle temperature.
 >
 > Install: `plugin install https://raw.githubusercontent.com/lyilyi1717/fanctrlplus/main/unraid/fanctrlplus.plg`
 
