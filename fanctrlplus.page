@@ -59,6 +59,10 @@ cpu_enable="0"
 cpu_sensor=""
 cpu_min_temp=""
 cpu_max_temp=""
+aux_enable="0"
+aux_sensor=""
+aux_min_temp=""
+aux_max_temp=""
 INI
 );
   }
@@ -134,6 +138,7 @@ $pwms = list_pwm();
 $disks = list_valid_disks_by_id();
 $width = 300;
 $cpu_sensors = detect_cpu_sensors();
+$aux_sensors = detect_aux_sensors();
 
 // === 读取 FCP Airflow 开关 ===
 function fcp_airflow_enabled(string $cfg_dir): bool {
@@ -458,12 +463,19 @@ $(function() {
           { selector: 'input[id^="high_temp_input_"]', unit: '°C', min: 1, max: 100 },
           { selector: 'input[id^="cpu_low_temp_input_"]', unit: '°C', min: 1, max: 95 },
           { selector: 'input[id^="cpu_high_temp_input_"]', unit: '°C', min: 1, max: 110 },
+          { selector: 'input[id^="aux_low_temp_input_"]', unit: '°C', min: 1, max: 100 },
+          { selector: 'input[id^="aux_high_temp_input_"]', unit: '°C', min: 1, max: 110 },
           { selector: 'input[id^="interval_input_"]', unit: ' min', min: 1, max: 60 }
         ]);
 
         $html.find('select[id^="cpu-enable-"]').each(function () {
           const index = this.id.replace('cpu-enable-', '');
           window.handleCpuEnableChange(this, index);
+        });
+
+        $html.find('select[id^="aux-enable-"]').each(function () {
+          const index = this.id.replace('aux-enable-', '');
+          window.handleAuxEnableChange(this, index);
         });
 
         bindFanSpeedEvents();
@@ -616,6 +628,8 @@ $(function() {
       { selector: 'input[id^="high_temp_input_"]', unit: '°C', min: 1, max: 100 },
       { selector: 'input[id^="cpu_low_temp_input_"]', unit: '°C', min: 1, max: 95 },
       { selector: 'input[id^="cpu_high_temp_input_"]', unit: '°C', min: 1, max: 110 },
+      { selector: 'input[id^="aux_low_temp_input_"]', unit: '°C', min: 1, max: 100 },
+      { selector: 'input[id^="aux_high_temp_input_"]', unit: '°C', min: 1, max: 110 },
       { selector: 'input[id^="interval_input_"]', unit: ' min', min: 1, max: 60 }
     ]);
     loadPWMOptions();
@@ -878,7 +892,11 @@ $(function() {
       cpu_enable: $block.find('select[name^="cpu_enable["]').val(),
       cpu_sensor: $block.find('select[name^="cpu_sensor["]').val(),
       cpu_min_temp: stripUnit($block.find('input[name^="cpu_min_temp["]').val()),
-      cpu_max_temp: stripUnit($block.find('input[name^="cpu_max_temp["]').val())
+      cpu_max_temp: stripUnit($block.find('input[name^="cpu_max_temp["]').val()),
+      aux_enable: $block.find('select[name^="aux_enable["]').val(),
+      aux_sensor: $block.find('select[name^="aux_sensor["]').val(),
+      aux_min_temp: stripUnit($block.find('input[name^="aux_min_temp["]').val()),
+      aux_max_temp: stripUnit($block.find('input[name^="aux_max_temp["]').val())
     };
     $block.data('original', original);
   }
@@ -903,7 +921,11 @@ $(function() {
         cpu_enable: $block.find('select[name^="cpu_enable["]').val(),
         cpu_sensor: $block.find('select[name^="cpu_sensor["]').val(),
         cpu_min_temp: stripUnit($block.find('input[name^="cpu_min_temp["]').val()),
-        cpu_max_temp: stripUnit($block.find('input[name^="cpu_max_temp["]').val())
+        cpu_max_temp: stripUnit($block.find('input[name^="cpu_max_temp["]').val()),
+        aux_enable: $block.find('select[name^="aux_enable["]').val(),
+        aux_sensor: $block.find('select[name^="aux_sensor["]').val(),
+        aux_min_temp: stripUnit($block.find('input[name^="aux_min_temp["]').val()),
+        aux_max_temp: stripUnit($block.find('input[name^="aux_max_temp["]').val())
       };
 
       if (JSON.stringify(original) !== JSON.stringify(current)) {
@@ -1077,6 +1099,15 @@ $(function() {
 
         if (!isNaN(cpuLow) && !isNaN(cpuHigh) && cpuLow >= cpuHigh) {
         alert(`Fan configuration "${name}": CPU Low Temp cannot exceed High Temp.`);
+        rangeValid = false;
+        return false;
+      }
+
+      const auxLow = parseInt(stripUnit(block.find('input[name^="aux_min_temp["]').val()));
+      const auxHigh = parseInt(stripUnit(block.find('input[name^="aux_max_temp["]').val()));
+
+      if (!isNaN(auxLow) && !isNaN(auxHigh) && auxLow >= auxHigh) {
+        alert(`Fan configuration "${name}": Aux Low Temp cannot exceed High Temp.`);
         rangeValid = false;
         return false;
       }
@@ -1421,6 +1452,36 @@ $(function() {
     }
   };
 
+  // Aux/MB 传感器块的启用/禁用切换（与 CPU 块一致，复用 cpu-input/cpu-label 样式）
+  window.handleAuxEnableChange = function(selectEl, index) {
+    const enabled = selectEl.value === "1";
+
+    const rows = document.querySelectorAll(`.aux-control-${index}`);
+    rows.forEach(row => {
+      row.querySelectorAll('.cpu-input').forEach(el => {
+        el.disabled = !enabled;
+        el.classList.toggle('disabled', !enabled);
+      });
+    });
+
+    document.querySelectorAll(`.aux-control-${index} .cpu-label`).forEach(label => {
+      label.classList.toggle('disabled', !enabled);
+    });
+
+    // 若启用且输入为空，则填入默认温度（主板 SYSTIN 量级）
+    if (enabled) {
+      const lowInput  = document.querySelector(`#aux_low_temp_input_${index}`);
+      const highInput = document.querySelector(`#aux_high_temp_input_${index}`);
+
+      if (lowInput && lowInput.value.trim() === '') {
+        lowInput.value = '35°C';
+      }
+      if (highInput && highInput.value.trim() === '') {
+        highInput.value = '55°C';
+      }
+    }
+  };
+
   // 初始化所有 block 的状态，并绑定 onchange
   window.addEventListener('load', function () {
     requestAnimationFrame(() => {
@@ -1432,6 +1493,15 @@ $(function() {
           window.handleCpuEnableChange(this, index);
         });
       });
+
+      document.querySelectorAll('select[id^="aux-enable-"]').forEach(select => {
+        const index = select.id.replace('aux-enable-', '');
+        window.handleAuxEnableChange(select, index);  // 初始状态应用
+
+        select.addEventListener('change', function () {
+          window.handleAuxEnableChange(this, index);
+        });
+      });
     });
   });
   setTimeout(() => {
@@ -1439,6 +1509,13 @@ $(function() {
       const index = select.id.replace('cpu-enable-', '');
       const enabled = select.value === "1";
       document.querySelectorAll(`.cpu-control-${index} .cpu-label`).forEach(label => {
+        label.classList.toggle('disabled', !enabled);
+      });
+    });
+    document.querySelectorAll('select[id^="aux-enable-"]').forEach(select => {
+      const index = select.id.replace('aux-enable-', '');
+      const enabled = select.value === "1";
+      document.querySelectorAll(`.aux-control-${index} .cpu-label`).forEach(label => {
         label.classList.toggle('disabled', !enabled);
       });
     });
@@ -1459,7 +1536,7 @@ $(function() {
           $cfg = parse_ini_file($path);
           $cfg['file'] = $file;
           $all_cfg[] = $cfg;
-          echo render_fan_block($cfg, $i++, $pwms, $disks, $pwm_labels, $cpu_sensors);
+          echo render_fan_block($cfg, $i++, $pwms, $disks, $pwm_labels, $cpu_sensors, $aux_sensors);
         }
       }
       ?>
@@ -1472,7 +1549,7 @@ $(function() {
           $cfg = parse_ini_file($path);
           $cfg['file'] = $file;
           $all_cfg[] = $cfg;
-          echo render_fan_block($cfg, $i++, $pwms, $disks, $pwm_labels, $cpu_sensors);
+          echo render_fan_block($cfg, $i++, $pwms, $disks, $pwm_labels, $cpu_sensors, $aux_sensors);
         }
       }
       ?>
@@ -1490,7 +1567,7 @@ $(function() {
       $cfg = parse_ini_file($path);
       $cfg['file'] = $basename;
       $all_cfg[] = $cfg;
-      $html = addslashes(render_fan_block($cfg, $i, $pwms, $disks, $pwm_labels, $cpu_sensors));
+      $html = addslashes(render_fan_block($cfg, $i, $pwms, $disks, $pwm_labels, $cpu_sensors, $aux_sensors));
       if ($count_left <= $count_right) {
         $target = '#fan-column-left';
         $count_left++;
@@ -1582,6 +1659,7 @@ $(function() {
         <li><strong>Only Disk enabled:</strong> Uses the highest temperature among the selected disks.</li>
         <li><strong>Only CPU enabled:</strong> Uses the CPU temperature.</li>
         <li><strong>Disk + CPU enabled:</strong> Calculates fan speed from both rules and applies whichever result is higher.</li>
+        <li><strong>Aux/Motherboard enabled:</strong> Adds a third rule (e.g. SYSTIN); the final speed is always the highest of all enabled rules.</li>
       </ul>
 
       <p style="margin: 10px 0 6px 0; font-weight: bold;">Example:</p>

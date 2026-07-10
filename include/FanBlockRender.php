@@ -9,7 +9,7 @@ if (is_file($label_file)) {
   }
 }
 
-function render_fan_block($cfg, $i, $pwms, $disks, $pwm_labels, $cpu_sensors) {
+function render_fan_block($cfg, $i, $pwms, $disks, $pwm_labels, $cpu_sensors, $aux_sensors = []) {
   // PWM fallback（如果值为空，则默认 fallback 为 40% 和 100%）
   $pwm_raw = isset($cfg['pwm']) && is_numeric($cfg['pwm']) ? $cfg['pwm'] : 102;
   $max_raw = isset($cfg['max']) && is_numeric($cfg['max']) ? $cfg['max'] : 255;
@@ -300,6 +300,61 @@ function render_fan_block($cfg, $i, $pwms, $disks, $pwm_labels, $cpu_sensors) {
                     title="High Temp: <?=intval($cfg['cpu_max_temp'] ?? 75)?>°C"
                     placeholder="High °C"
                     <?=($cfg['cpu_enable'] ?? '') != '1' ? 'disabled' : ''?>>
+            </div>
+          </td>
+        </tr>
+
+        <tr><td colspan="2" class="subhead">Aux / Motherboard Temperature Settings</td></tr>
+
+        <!-- Aux Temp Monitoring Dropdown -->
+        <tr>
+          <td class="fcp-help-cursor" title="Enable or disable monitoring an auxiliary temperature (e.g. motherboard SYSTIN) for this fan.">Aux Temp Monitor:</td>
+          <td>
+            <select id="aux-enable-<?=$i?>" name="aux_enable[<?=$i?>]" class="fcp-enable-select" onchange="handleAuxEnableChange(this, <?=$i?>);">
+              <option value="0" <?=($cfg['aux_enable'] ?? '') != '1' ? 'selected' : ''?>>Disabled</option>
+              <option value="1" <?=($cfg['aux_enable'] ?? '') == '1' ? 'selected' : ''?>>Enabled</option>
+            </select>
+          </td>
+        </tr>
+
+        <!-- Aux Sensor -->
+        <tr class="aux-control aux-control-<?=$i?>">
+          <td class="cpu-label fcp-help-cursor" title="Motherboard / auxiliary temperature sensor (SuperIO chip, e.g. SYSTIN). Re-resolved by chip name + label on every read.">Aux Sensor:</td>
+          <td>
+            <select name="aux_sensor[<?=$i?>]" class="cpu-input fcp-w-300" <?=($cfg['aux_enable'] ?? '') != '1' ? 'disabled' : ''?>>
+              <?php foreach ($aux_sensors as $spec => $label): ?>
+                <option value="<?=htmlspecialchars($spec)?>" <?=($cfg['aux_sensor'] ?? '') == $spec ? 'selected' : ''?>><?=htmlspecialchars($label)?></option>
+              <?php endforeach; ?>
+            </select>
+          </td>
+        </tr>
+
+        <!-- Aux Temp Range -->
+        <tr class="aux-control aux-control-<?=$i?>">
+          <td class="cpu-label fcp-help-cursor" title="Fan runs at minimum speed at or below Low Temp, and maximum speed at or above High Temp.">Aux Temperature Range:</td>
+          <td>
+            <div class="fcp-range-grid">
+              <input type="text"
+                    id="aux_low_temp_input_<?=$i?>"
+                    name="aux_min_temp[<?=$i?>]"
+                    class="cpu-input fcp-input-fullleft"
+                    inputmode="numeric"
+                    value="<?=htmlspecialchars(($cfg['aux_min_temp'] ?? '') . '°C')?>"
+                    title="Low Temp: <?=intval($cfg['aux_min_temp'] ?? 35)?>°C"
+                    placeholder="Low °C"
+                    <?=($cfg['aux_enable'] ?? '') != '1' ? 'disabled' : ''?>>
+
+              <span class="fcp-center">~</span>
+
+              <input type="text"
+                    id="aux_high_temp_input_<?=$i?>"
+                    name="aux_max_temp[<?=$i?>]"
+                    class="cpu-input fcp-input-fullleft"
+                    inputmode="numeric"
+                    value="<?=htmlspecialchars(($cfg['aux_max_temp'] ?? '') . '°C')?>"
+                    title="High Temp: <?=intval($cfg['aux_max_temp'] ?? 55)?>°C"
+                    placeholder="High °C"
+                    <?=($cfg['aux_enable'] ?? '') != '1' ? 'disabled' : ''?>>
             </div>
           </td>
         </tr>

@@ -326,6 +326,60 @@ function detect_cpu_sensors(): array {
   return $final;
 }
 
+// 掃描主板 SuperIO (nct67xx / it87xx 等) 的 temp*_label 傳感器，供 Aux/MB 溫控使用。
+// 返回 auto:CHIP:LABEL => 描述；auto: 形式在每次读取时按芯片名+label 重新解析，
+// 不受 hwmon 重新编号影响。读数 <= 0 的通道（如未接的 PCH_* 常年 0）会被跳过。
+function detect_aux_sensors(): array {
+  $result = [];
+
+  $superio_prefixes = ['it8','it86','it87','nct6','nct67','nct68','nuvoton'];
+
+  foreach (glob('/sys/class/hwmon/hwmon*') as $hwmonPath) {
+    $nameFile = "$hwmonPath/name";
+    if (!is_readable($nameFile)) continue;
+    $chipName = trim(@file_get_contents($nameFile));
+    $chipLower = strtolower($chipName);
+
+    $isSuperIO = false;
+    foreach ($superio_prefixes as $p) {
+      if (strpos($chipLower, $p) === 0) { $isSuperIO = true; break; }
+    }
+    if (!$isSuperIO) continue;
+
+    foreach (glob("$hwmonPath/temp*_label") as $labelFile) {
+      $label = trim(@file_get_contents($labelFile));
+      $input = str_replace('_label', '_input', $labelFile);
+      if ($label === '' || !is_readable($input)) continue;
+
+      $raw = trim(@file_get_contents($input));
+      $c   = is_numeric($raw) ? intval($raw) / 1000 : null;
+      // 跳过 0 或负值的死通道（如未接的 PCH_* 常年 0）
+      if ($c === null || $c <= 0) continue;
+
+      $idxNum = 999;
+      if (preg_match('#/temp(\d+)_input$#', $input, $m)) $idxNum = (int)$m[1];
+
+      $tempC = round($c, 1) . '°C';
+      $result[] = [
+        'spec'  => "auto:$chipName:$label",
+        'label' => "$chipName - $label ($tempC)",
+        'chip'  => $chipName,
+        'idx'   => $idxNum,
+      ];
+    }
+  }
+
+  usort($result, function($a, $b){
+    return strnatcasecmp($a['chip'],$b['chip']) ?: ($a['idx'] <=> $b['idx']);
+  });
+
+  $final = [];
+  foreach ($result as $e) {
+    $final[$e['spec']] = $e['label'];
+  }
+  return $final;
+}
+
   // 映射 /dev/nvmeXp1 → pool 名（通过 zpool list -v）
   $dev_to_pool = [];
   $zpool = shell_exec("zpool list -v 2>/dev/null");

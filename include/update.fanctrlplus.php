@@ -86,6 +86,21 @@ foreach ($_POST['#file'] as $i => $file) {
     $cpu_max_temp = '';
   }
 
+  // Aux/MB fallback
+  $aux_enable = $_POST['aux_enable'][$i] ?? '0';
+  $aux_sensor = $_POST['aux_sensor'][$i] ?? '';
+
+  $aux_min_raw = $_POST['aux_min_temp'][$i] ?? '';
+  $aux_max_raw = $_POST['aux_max_temp'][$i] ?? '';
+
+  if ($aux_enable === '1') {
+    $aux_min_temp = is_numeric($amin = preg_replace('/[^0-9]/', '', $aux_min_raw)) ? intval($amin) : 35;
+    $aux_max_temp = is_numeric($amax = preg_replace('/[^0-9]/', '', $aux_max_raw)) ? intval($amax) : 55;
+  } else {
+    $aux_min_temp = '';
+    $aux_max_temp = '';
+  }
+
   // Custom Name 不能为空
   if ($custom === '') {
     ob_clean();
@@ -195,6 +210,10 @@ foreach ($_POST['#file'] as $i => $file) {
     'cpu_sensor'    => $cpu_sensor,
     'cpu_min_temp'  => $cpu_min_temp,
     'cpu_max_temp'  => $cpu_max_temp,
+    'aux_enable'    => $aux_enable,
+    'aux_sensor'    => $aux_sensor,
+    'aux_min_temp'  => $aux_min_temp,
+    'aux_max_temp'  => $aux_max_temp,
   ];
 
   $content = '';

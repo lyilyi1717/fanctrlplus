@@ -152,6 +152,10 @@ switch ($op) {
     cpu_sensor=""
     cpu_min_temp=""
     cpu_max_temp=""
+    aux_enable="0"
+    aux_sensor=""
+    aux_min_temp=""
+    aux_max_temp=""
     INI
     );
 
@@ -164,9 +168,10 @@ switch ($op) {
     $pwms = list_pwm();
     $disks = list_valid_disks_by_id();
     $cpu_sensors = detect_cpu_sensors();
+    $aux_sensors = detect_aux_sensors();
 
     header('Content-Type: text/html; charset=utf-8');
-    echo render_fan_block($cfg, $page_index, $pwms, $disks, $pwm_labels, $cpu_sensors); 
+    echo render_fan_block($cfg, $page_index, $pwms, $disks, $pwm_labels, $cpu_sensors, $aux_sensors);
     exit;
 
   case 'setsyslog':
