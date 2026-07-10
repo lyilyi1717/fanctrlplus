@@ -1,5 +1,16 @@
 # **FanCtrl Plus**
 
+> ### Threadripper fork (lyilyi1717/fanctrlplus, v1.3.3-tr1)
+>
+> This fork of [ck9393/fanctrlplus](https://github.com/ck9393/fanctrlplus) adds four fixes aimed at multi-die AMD CPUs (e.g. Threadripper 1950X, whose k10temp exposes two Tdie sensors and whose hwmon indexes reshuffle across driver reloads):
+>
+> 1. **Multi-sensor CPU max** — `cpu_sensor` may hold several paths (space/comma separated) or `auto:CHIP:LABEL` (e.g. `auto:k10temp:Tdie`); the daemon reads all matches and uses the highest temperature. The settings page offers an "All k10temp Tdie (max of N)" option when a chip exposes the same label more than once.
+> 2. **Fail-to-full** — if CPU monitoring is enabled and no temperature (CPU or disk) can be read, the fan is driven at 100% instead of idle, and the event is logged to syslog.
+> 3. **Sensor path re-resolution** — stored sensor paths are verified by chip name + label each cycle and re-located when hwmon renumbering moves or replaces them (mirrors the existing controller-path migration).
+> 4. **Seconds-granularity interval** — interval accepts an `s` suffix (e.g. `10s` = 10 seconds); plain integers remain minutes. Recommended for CPU-based control: `10s`.
+>
+> Install: `plugin install https://raw.githubusercontent.com/lyilyi1717/fanctrlplus/main/unraid/fanctrlplus.plg`
+
 **FanCtrl Plus** is an Unraid plugin that provides automatic fan control based on the temperatures of HDDs, NVMe drives, Unassigned Devices, and optionally the CPU.  
 Each fan configuration can monitor specific drives or the CPU, define a temperature range, and scale fan speed automatically using a linear control algorithm.  
 Configuration is done through a user-friendly interface, with custom thresholds, intervals, and labels available per fan.
