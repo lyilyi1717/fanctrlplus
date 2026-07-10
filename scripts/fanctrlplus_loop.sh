@@ -53,10 +53,27 @@ find_cpu_inputs_by_chip_label() {
   done
 }
 
+# 记录每个绝对路径传感器对应的 芯片名|label 快照，
+# hwmon 重新编号后可据此重新定位（参照 migrate_cfg_and_labels 对 controller 的做法）
+declare -A sensor_identity
+snapshot_sensor_identity() {
+  local spec dir lf
+  for spec in ${cpu_sensor//,/ }; do
+    [[ "$spec" == auto:* ]] && continue
+    [[ -r "$spec" ]] || continue
+    dir="$(dirname "$spec")"
+    lf="${spec%_input}_label"
+    if [[ -r "$dir/name" && -r "$lf" ]]; then
+      sensor_identity[$spec]="$(cat "$dir/name" 2>/dev/null)|$(cat "$lf" 2>/dev/null)"
+    fi
+  done
+}
+
 # 将 cpu_sensor（支持逗号/空格分隔的多路径，以及 auto:CHIP:LABEL 形式）
-# 展开为当前可读的 temp*_input 路径
+# 展开为当前可读的 temp*_input 路径；hwmon 重新编号后按快照重新解析，
+# 即使旧路径仍存在也先校验芯片/label 身份（旧编号可能已被其他芯片占用）
 resolve_cpu_sensors() {
-  local spec rest chip label
+  local spec rest chip label dir lf
   for spec in ${cpu_sensor//,/ }; do
     case "$spec" in
       auto:*:*)
@@ -66,11 +83,27 @@ resolve_cpu_sensors() {
         find_cpu_inputs_by_chip_label "$chip" "$label"
         ;;
       *)
-        [[ -r "$spec" ]] && echo "$spec"
+        if [[ -n "${sensor_identity[$spec]:-}" ]]; then
+          chip="${sensor_identity[$spec]%%|*}"
+          label="${sensor_identity[$spec]#*|}"
+          dir="$(dirname "$spec")"
+          lf="${spec%_input}_label"
+          if [[ -r "$spec" && "$(cat "$dir/name" 2>/dev/null)" == "$chip" \
+                && "$(cat "$lf" 2>/dev/null)" == "$label" ]]; then
+            echo "$spec"
+          else
+            find_cpu_inputs_by_chip_label "$chip" "$label" | head -n 1
+          fi
+        elif [[ -r "$spec" ]]; then
+          echo "$spec"
+        fi
         ;;
     esac
   done
 }
+
+# 启动时先建立传感器身份快照（芯片名 + label）
+snapshot_sensor_identity
 
 prev_pwm=-1
 failsafe_active=0
