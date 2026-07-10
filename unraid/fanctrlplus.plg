@@ -1,13 +1,13 @@
 <?xml version='1.0' standalone='yes'?>
 <!DOCTYPE PLUGIN [
 <!ENTITY name "fanctrlplus">
-<!ENTITY version "1.3.3-tr1">
+<!ENTITY version "1.3.3-tr2">
 <!ENTITY author "ck9393 (TR fixes by lyilyi1717)">
 <!ENTITY launch "Settings/fanctrlplus">
 <!ENTITY pluginURL "https://raw.githubusercontent.com/lyilyi1717/fanctrlplus/main/unraid/&name;.plg">
 <!ENTITY source "/boot/config/plugins/&name;">
 <!ENTITY txz "/boot/config/plugins/fanctrlplus/fanctrlplus-&version;.txz">
-<!ENTITY MD5 "9c486cad39723737d7c7ee6d1fe29eb4">
+<!ENTITY MD5 "7f78c09c46dbcc4bf10a46fd23e56f42">
 ]>
 
 <PLUGIN name="&name;" author="&author;" version="&version;" launch="&launch;" pluginURL="&pluginURL;" min="6.9.0" support="https://forums.unraid.net/topic/191722-plugin-fancrtl-plus">
@@ -18,6 +18,13 @@
 
 <CHANGES>
 ###&version;
+- Aux/Motherboard temperature source per fan: new aux_enable / aux_sensor / aux_min_temp / aux_max_temp cfg keys (defaults 35-55C)
+- aux_sensor uses the same syntax as cpu_sensor (paths, lists, auto:CHIP:LABEL) with the same hwmon re-resolution
+- Final fan speed = max(disk, CPU, aux); dashboard/syslog show (MB) when the aux source wins
+- Settings page gains an Aux / Motherboard block listing SuperIO (nct*/it87*) labeled temps; dead 0-reading channels are hidden
+- Failsafe extended: full speed only when every enabled hwmon source (CPU and/or aux) is unreadable and no disk temp is available
+
+###1.3.3-tr1
 - Fork with Threadripper fixes (lyilyi1717/fanctrlplus):
 - cpu_sensor supports multiple paths and auto:CHIP:LABEL (e.g. auto:k10temp:Tdie); daemon uses the max across all matching sensors
 - Failsafe: if CPU monitoring is enabled and no temperature (CPU or disk) is readable, fan goes to FULL speed instead of idle (logged to syslog)
