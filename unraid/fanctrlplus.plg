@@ -1,13 +1,13 @@
 <?xml version='1.0' standalone='yes'?>
 <!DOCTYPE PLUGIN [
 <!ENTITY name "fanctrlplus">
-<!ENTITY version "1.3.3-tr2">
+<!ENTITY version "1.3.3-tr3">
 <!ENTITY author "ck9393 (TR fixes by lyilyi1717)">
 <!ENTITY launch "Settings/fanctrlplus">
 <!ENTITY pluginURL "https://raw.githubusercontent.com/lyilyi1717/fanctrlplus/main/unraid/&name;.plg">
 <!ENTITY source "/boot/config/plugins/&name;">
 <!ENTITY txz "/boot/config/plugins/fanctrlplus/fanctrlplus-&version;.txz">
-<!ENTITY MD5 "a9940d1993910cf0c9777c30ac95d068">
+<!ENTITY MD5 "2058dc0b584d57d39ae2dd5496acd5de">
 ]>
 
 <PLUGIN name="&name;" author="&author;" version="&version;" launch="&launch;" pluginURL="&pluginURL;" min="6.9.0" support="https://forums.unraid.net/topic/191722-plugin-fancrtl-plus">
@@ -18,6 +18,9 @@
 
 <CHANGES>
 ###&version;
+- Fix: migrate/relocation of a fan's controller= path could bind to a NON-fan hwmon (PSU/USB/AIO/CPU/disk/GPU sensor) when hwmon indexes drift across a reboot and the SuperIO module is not yet loaded. Real case: a corsair_psu (passed through to a VM) captured the CPU fan's path, leaving the fan uncontrolled. Relocation now refuses any excluded chip (corsair/nzxt/usb/k10temp/coretemp/nvme/drivetemp/amdgpu/...) and keeps the existing path instead of hijacking a wrong device.
+
+###1.3.3-tr2
 - Aux/Motherboard temperature source per fan: new aux_enable / aux_sensor / aux_min_temp / aux_max_temp cfg keys (defaults 35-55C)
 - aux_sensor uses the same syntax as cpu_sensor (paths, lists, auto:CHIP:LABEL) with the same hwmon re-resolution
 - Final fan speed = max(disk, CPU, aux); dashboard/syslog show (MB) when the aux source wins

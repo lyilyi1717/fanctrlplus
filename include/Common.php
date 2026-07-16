@@ -10,6 +10,18 @@ function normalize_chip_name(string $chip): string {
     return $chip;
 }
 
+// tr3: hwmon indexes drift across reboots; a non-motherboard-fan device
+// (PSU/USB/AIO/CPU/disk/GPU sensor) can transiently occupy an index and hijack
+// a controller= path (real case: a corsair_psu passed through to a VM captured
+// the CPU fan's path, leaving it uncontrolled). Never treat these as fan
+// controllers during relocation.
+function is_excluded_chip(string $chip): bool {
+    return (bool)preg_match(
+        '/^(corsair|nzxt|kraken|smart_device|usb|hidraw|k10temp|coretemp|zenpower|nvme|drivetemp|acpitz|amdgpu|nouveau|radeon|i915|asusec|ee1004|spd5118|ucsi|thinkpad|BAT|power_supply)/i',
+        $chip
+    );
+}
+
 function build_pwm_map(): array {
     $map = [];
     foreach (glob("/sys/class/hwmon/hwmon*") as $dir) {
@@ -17,6 +29,7 @@ function build_pwm_map(): array {
         if (!is_file($name_file)) continue;
 
         $chip = normalize_chip_name(trim(file_get_contents($name_file)));
+        if ($chip === '' || is_excluded_chip($chip)) continue; // tr3: skip non-fan (PSU/USB/CPU/disk/GPU) chips
 
         foreach (glob("$dir/pwm[0-9]") as $pwm_path) {
             $pwmN = basename($pwm_path);
@@ -42,7 +55,7 @@ function extract_chip_and_pwm_from_path(string $old_path): ?array {
         foreach (glob("/sys/devices/platform/$platform/hwmon/hwmon*") as $dir) {
             if (is_file("$dir/$pwmN") && is_file("$dir/name")) {
                 $chip = normalize_chip_name(trim(@file_get_contents("$dir/name")));
-                if ($chip !== '') {
+                if ($chip !== '' && !is_excluded_chip($chip)) {
                     return [$chip, $pwmN];
                 }
             }
@@ -56,15 +69,16 @@ function extract_chip_and_pwm_from_path(string $old_path): ?array {
         $name_file = "/sys/class/hwmon/$hwmon/name";
         if (is_file($name_file)) {
             $chip = normalize_chip_name(trim(@file_get_contents($name_file)));
-            if ($chip !== '') return [$chip, $pwmN];
+            // tr3: the old hwmon index may now belong to a different chip — never bind to a non-fan chip
+            if ($chip !== '' && !is_excluded_chip($chip)) return [$chip, $pwmN];
         }
     }
 
-    // 最后兜底：扫描所有 hwmon*
+    // 最后兜底：扫描所有 hwmon*（跳过非风扇芯片）
     foreach (glob("/sys/class/hwmon/hwmon*") as $dir) {
         if (is_file("$dir/$pwmN") && is_file("$dir/name")) {
             $chip = normalize_chip_name(trim(@file_get_contents("$dir/name")));
-            if ($chip !== '') return [$chip, $pwmN];
+            if ($chip !== '' && !is_excluded_chip($chip)) return [$chip, $pwmN]; // tr3: fan chips only
         }
     }
 
